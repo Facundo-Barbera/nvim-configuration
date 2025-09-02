@@ -26,3 +26,7 @@ require("lazy").setup({
 		notify = false,
 	},
 })
+
+local theme_choice = "catppuccin"
+vim.cmd.colorscheme(theme_choice)
+
