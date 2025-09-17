@@ -1,0 +1,9 @@
+Running healthchecks...Error detected while processing command line:
+Error executing vim.schedule lua callback: ...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:94: Error catching ltex client
+stack traceback:
+	[C]: in function 'updateConfig'
+	...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:94: in function <...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:93>
+Error executing vim.schedule lua callback: ...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:94: Error catching ltex client
+stack traceback:
+	[C]: in function 'updateConfig'
+	...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:94: in function <...vim/lazy/ltex_extra.nvim/lua/ltex_extra/commands-lsp.lua:93>

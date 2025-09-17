@@ -8,9 +8,15 @@ return {
 	},
 	config = function()
 		require("nvim-tree").setup({
+			disable_netrw = true,
+			hijack_netrw = true,
 			view = {
 				width = 30,
 				side = "left",
+				preserve_window_proportions = true,
+				number = false,
+				relativenumber = false,
+				signcolumn = "no",
 			},
 			renderer = {
 				icons = {
@@ -30,11 +36,36 @@ return {
 						enable = true,
 						chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
 						exclude = {
-							filetype = { "notify", "packer", "qf", "diff", "fugitive", "fugitiveblame" },
+							filetype = { "notify", "packer", "qf", "diff", "fugitive", "fugitiveblame", "NvimTree" },
 							buftype = { "nofile", "terminal", "help" },
 						},
 					},
 				},
+			},
+			filters = {
+				dotfiles = false,
+				custom = {
+					"^.git$",
+					-- macOS system files
+					"^.DS_Store$",
+					"^.AppleDouble$",
+					"^.LSOverride$",
+					-- Windows system files
+					"^Thumbs.db$",
+					"^ehthumbs.db$",
+					"^Desktop.ini$",
+					-- Linux system files
+					"^.directory$",
+				},
+			},
+			git = {
+				enable = true,
+				ignore = false,
+			},
+			update_focused_file = {
+				enable = true,
+				update_root = false,
+				ignore_list = {},
 			},
 		})
 
