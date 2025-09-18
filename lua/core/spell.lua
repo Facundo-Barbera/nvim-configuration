@@ -1,79 +1,613 @@
--- Core spell checking configuration
--- Sets up built-in Vim spell checker with smart defaults
+-- Enhanced spell checking configuration
+-- Smart multi-language Vim spell checker with auto-detection
 
--- Enable spell checking globally but only show highlights for relevant filetypes
-vim.opt.spell = false -- Start disabled globally
-vim.opt.spelllang = { "en_us", "es" }
-vim.opt.spellsuggest = "best,9"
+local M = {}
 
--- Define text-heavy filetypes that benefit from spell checking
-local spell_filetypes = {
-    "markdown",
-    "text",
-    "gitcommit",
-    "rst",
-    "tex",
-    "typst",
-    "mail",
-    "org",
+local personal_spell_dir = vim.fn.stdpath("config") .. "/spell"
+local personal_spell_file = personal_spell_dir .. "/personal.utf-8.add"
+local data_spell_dir = vim.fn.stdpath("data") .. "/site/spell"
+local spanish_spell_files = {
+	{
+		filename = "es.utf-8.spl",
+		path = data_spell_dir .. "/es.utf-8.spl",
+		url = "https://ftp.nluug.nl/vim/runtime/spell/es.utf-8.spl",
+	},
+	{
+		filename = "es.utf-8.sug",
+		path = data_spell_dir .. "/es.utf-8.sug",
+		url = "https://ftp.nluug.nl/vim/runtime/spell/es.utf-8.sug",
+	},
 }
 
--- Helper function to enable spell checking for specific filetypes
-local function setup_spell_for_filetype()
-    local ft = vim.bo.filetype
+local text_filetypes = {
+	"markdown",
+	"text",
+	"gitcommit",
+	"rst",
+	"tex",
+	"latex",
+	"plaintex",
+	"typst",
+	"mail",
+	"org",
+	"asciidoc",
+}
 
-    -- Enable spell for text-heavy filetypes
-    for _, spell_ft in ipairs(spell_filetypes) do
-        if ft == spell_ft then
-            vim.opt_local.spell = true
-            break
-        end
-    end
+local ui_filetypes = {
+	"help",
+	"terminal",
+	"dashboard",
+	"packer",
+	"fzf",
+	"NeogitStatus",
+	"checkhealth",
+	"lazy",
+	"mason",
+	"lspinfo",
+}
+
+local text_filetype_set = {}
+for _, ft in ipairs(text_filetypes) do
+	text_filetype_set[ft] = true
 end
 
--- Autocmd group for spell checking
-local spell_group = vim.api.nvim_create_augroup("SpellConfig", { clear = true })
+local detection_cooldown_ns = 5e9 -- 5 seconds
 
--- Auto-enable spell checking for text filetypes
-vim.api.nvim_create_autocmd("FileType", {
-    group = spell_group,
-    pattern = spell_filetypes,
-    callback = function()
-        vim.opt_local.spell = true
-    end,
-    desc = "Enable spell checking for text-heavy filetypes",
-})
+vim.opt.spell = false
+vim.opt.spelllang = { "en_us", "es" }
+vim.opt.spellsuggest = "best,9"
+vim.opt.spellfile = personal_spell_file
 
--- Disable spell checking for certain filetypes where it's not useful
-vim.api.nvim_create_autocmd("FileType", {
-    group = spell_group,
-    pattern = { "help", "terminal", "dashboard", "packer", "fzf", "NeogitStatus", "checkhealth" },
-    callback = function()
-        vim.opt_local.spell = false
-    end,
-    desc = "Disable spell checking for UI filetypes",
-})
+local function ensure_personal_spell_dir()
+	if vim.fn.isdirectory(personal_spell_dir) == 0 then
+		vim.fn.mkdir(personal_spell_dir, "p")
+	end
+end
 
--- Additional spell checking keymaps (optional)
--- These supplement the default z= for spell suggestions
+ensure_personal_spell_dir()
+
+local spellsuggest_available = true
+
+local function is_valid_spell_file(path)
+	if vim.fn.filereadable(path) == 0 then
+		return false
+	end
+	local size = vim.fn.getfsize(path)
+	return size ~= nil and size > 0
+end
+
+local function copy_file(src, dest)
+	local ok, err = pcall(function()
+		local data = vim.fn.readfile(src, "b")
+		if not data or vim.tbl_isempty(data) then
+			error("empty source file")
+		end
+		local dest_dir = vim.fn.fnamemodify(dest, ":h")
+		if vim.fn.isdirectory(dest_dir) == 0 then
+			vim.fn.mkdir(dest_dir, "p")
+		end
+		vim.fn.writefile(data, dest, "b")
+	end)
+	if not ok then
+		return false, err
+	end
+	return is_valid_spell_file(dest)
+end
+
+local function find_bundled_spell_file(filename)
+	local config_candidate = vim.fn.stdpath("config") .. "/spell/" .. filename
+	if is_valid_spell_file(config_candidate) then
+		return config_candidate
+	end
+	local runtime_files = vim.api.nvim_get_runtime_file("spell/" .. filename, false)
+	for _, file in ipairs(runtime_files) do
+		if is_valid_spell_file(file) then
+			return file
+		end
+	end
+	return nil
+end
+
+local function download_file(entry)
+	local result = vim.system({ "curl", "-fsSL", "-o", entry.path, entry.url }):wait()
+	if result.code ~= 0 then
+		local message = result.stderr
+		if not message or message == "" then
+			message = string.format("curl exited with code %d", result.code)
+		end
+		return false, message
+	end
+	return true
+end
+
+local function ensure_spell_files(opts)
+	opts = opts or {}
+	if vim.fn.isdirectory(data_spell_dir) == 0 then
+		vim.fn.mkdir(data_spell_dir, "p")
+	end
+
+	for _, entry in ipairs(spanish_spell_files) do
+		local valid = is_valid_spell_file(entry.path)
+		if opts.force or not valid then
+			local source = find_bundled_spell_file(entry.filename)
+			if source then
+				local copied, err = copy_file(source, entry.path)
+				if not copied then
+					vim.notify(
+						string.format("Failed to copy spell file %s: %s", entry.filename, err),
+						vim.log.levels.WARN
+					)
+				else
+					valid = true
+				end
+			end
+		end
+
+		if not valid then
+			local ok, err = download_file(entry)
+			if not ok then
+				vim.notify(
+					string.format("Failed to download Spanish spell file %s: %s", entry.filename, err),
+					vim.log.levels.ERROR
+				)
+				return false
+			end
+			valid = is_valid_spell_file(entry.path)
+		end
+
+		if not valid then
+			vim.notify(string.format("Spanish spell file %s is unavailable", entry.filename), vim.log.levels.ERROR)
+			return false
+		end
+	end
+
+	spellsuggest_available = true
+	return true
+end
+
+local function clean_text(lines)
+	local text = table.concat(lines, " "):lower()
+	text = text:gsub("\\[%w*]+%{[^}]*%}", "")
+	text = text:gsub("\\[%w*]+", "")
+	text = text:gsub("\\%b()", "")
+	text = text:gsub("\\%b[]", "")
+	text = text:gsub("%$[^%$]*%$", "")
+	text = text:gsub("%b{}", "")
+	text = text:gsub("[\\&%_%^%$]+", " ")
+	return text
+end
+
+local function count_word_occurrences(text, words, weight)
+	local score = 0
+	for _, word in ipairs(words or {}) do
+		local _, matches = text:gsub("%f[%w]" .. word .. "%f[%W]", "")
+		score = score + matches * weight
+	end
+	return score
+end
+
+local function count_pattern_occurrences(text, patterns, weight)
+	local score = 0
+	for _, pattern in ipairs(patterns or {}) do
+		local _, matches = text:gsub(pattern, "")
+		score = score + matches * weight
+	end
+	return score
+end
+
+local spanish_indicators = {
+	words = {
+		"el",
+		"la",
+		"los",
+		"las",
+		"un",
+		"una",
+		"es",
+		"son",
+		"está",
+		"están",
+		"que",
+		"para",
+		"con",
+		"por",
+		"como",
+		"en",
+		"de",
+		"del",
+		"al",
+		"se",
+		"le",
+		"lo",
+		"pero",
+		"muy",
+		"también",
+		"todo",
+		"este",
+		"esta",
+		"cuando",
+		"donde",
+		"porque",
+		"aunque",
+		"desde",
+		"hasta",
+		"sobre",
+		"entre",
+		"después",
+		"antes",
+		"mientras",
+		"siempre",
+		"nunca",
+		"aquí",
+		"cómo",
+		"cuál",
+		"quién",
+		"respuesta",
+		"problema",
+		"ejercicio",
+		"solución",
+		"matemáticas",
+		"división",
+		"fracción",
+	},
+	accents = { "á", "é", "í", "ó", "ú", "ñ", "ü" },
+	patterns = { "ción", "sión", "dad", "tad", "mente", "ando", "endo" },
+}
+
+local english_indicators = {
+	words = {
+		"the",
+		"and",
+		"is",
+		"are",
+		"was",
+		"were",
+		"have",
+		"has",
+		"had",
+		"will",
+		"would",
+		"could",
+		"should",
+		"this",
+		"that",
+		"these",
+		"those",
+		"with",
+		"from",
+		"they",
+		"them",
+		"their",
+		"there",
+		"where",
+		"when",
+		"what",
+		"who",
+		"how",
+		"why",
+		"because",
+		"although",
+		"however",
+		"therefore",
+		"while",
+		"during",
+		"after",
+		"before",
+		"always",
+		"never",
+		"here",
+		"very",
+		"also",
+		"only",
+		"just",
+		"more",
+		"most",
+		"some",
+		"any",
+		"answer",
+		"problem",
+		"exercise",
+		"solution",
+		"mathematics",
+		"division",
+		"fraction",
+	},
+	patterns = { "ing", "tion", "ness", "ment", "able", "ible" },
+}
+
+local function detect_language_from_buffer()
+	local total_lines = vim.api.nvim_buf_line_count(0)
+	local end_line = math.min(total_lines, 100)
+	local lines = vim.api.nvim_buf_get_lines(0, 0, end_line, false)
+	if #lines == 0 then
+		return "es"
+	end
+
+	local text = clean_text(lines)
+	local spanish_score = count_word_occurrences(text, spanish_indicators.words, 2)
+	spanish_score = spanish_score + count_pattern_occurrences(text, spanish_indicators.patterns, 1)
+	spanish_score = spanish_score + count_pattern_occurrences(text, spanish_indicators.accents, 3)
+
+	local english_score = count_word_occurrences(text, english_indicators.words, 2)
+	english_score = english_score + count_pattern_occurrences(text, english_indicators.patterns, 1)
+
+	local filetype = vim.bo.filetype
+	if filetype == "tex" or filetype == "latex" or filetype == "plaintex" then
+		vim.notify(
+			string.format(
+				"LaTeX detection: Spanish=%d, English=%d (cleaned text: %.50s...)",
+				spanish_score,
+				english_score,
+				text
+			),
+			vim.log.levels.DEBUG
+		)
+	end
+
+	if spanish_score > english_score and spanish_score > 3 then
+		return "es"
+	end
+
+	if english_score > spanish_score and english_score > 3 then
+		return "en_us"
+	end
+
+	return "es"
+end
+
+local function set_spell_language(lang)
+	if lang == "es" and not ensure_spell_files() then
+		vim.notify("Could not download Spanish spell files, using English", vim.log.levels.WARN)
+		lang = "en_us"
+	end
+
+	vim.opt_local.spelllang = lang
+	local lang_name = lang == "es" and "Spanish" or "English"
+	vim.notify("Spell language set to " .. lang_name, vim.log.levels.INFO)
+end
+
+local function auto_detect_language()
+	local detected = detect_language_from_buffer()
+	set_spell_language(detected)
+	local lang_name = detected == "es" and "Spanish" or "English"
+	vim.notify("Auto-detected language: " .. lang_name, vim.log.levels.INFO)
+end
+
+local function show_spell_suggestions()
+	if not vim.opt_local.spell:get() then
+		return
+	end
+
+	local word = vim.fn.expand("<cword>")
+	if word == "" then
+		return
+	end
+
+	local is_misspelled = vim.fn.spellbadword(word)[1]
+	if not is_misspelled then
+		return
+	end
+
+	if not spellsuggest_available then
+		return
+	end
+
+	local ok, suggestions = pcall(vim.fn.spellsuggest, word, 9)
+	if not ok then
+		local ensured = ensure_spell_files({ force = true })
+		if ensured then
+			spellsuggest_available = true
+			vim.notify_once("Refreshed Spanish spell files after suggestion error. Try again.", vim.log.levels.INFO)
+		else
+			spellsuggest_available = false
+			vim.notify_once("Spell suggestions disabled: " .. tostring(suggestions), vim.log.levels.WARN)
+		end
+		return
+	end
+	if #suggestions > 0 then
+		vim.diagnostic.open_float(nil, {
+			scope = "cursor",
+			header = "Spelling Suggestions for '" .. word .. "'",
+			source = "vim-spell",
+			focusable = false,
+			close_events = { "CursorMoved", "CursorMovedI", "InsertCharPre" },
+		})
+	end
+end
+
+local function with_buf(bufnr, callback)
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return
+	end
+	vim.api.nvim_buf_call(bufnr, callback)
+end
+
 local function setup_spell_keymaps()
-    -- Quick spell checking toggle
-    vim.keymap.set("n", "<leader>ss", function()
-        vim.opt_local.spell = not vim.opt_local.spell:get()
-        local status = vim.opt_local.spell:get() and "enabled" or "disabled"
-        vim.notify("Spell checking " .. status, vim.log.levels.INFO)
-    end, { desc = "Toggle spell checking" })
+	local function toggle_spell()
+		vim.opt_local.spell = not vim.opt_local.spell:get()
+		local status = vim.opt_local.spell:get() and "enabled" or "disabled"
+		vim.notify("Spell checking " .. status, vim.log.levels.INFO)
+	end
 
-    -- Navigate between spelling errors
-    vim.keymap.set("n", "]s", "]s", { desc = "Next spelling error" })
-    vim.keymap.set("n", "[s", "[s", { desc = "Previous spelling error" })
+	local function force_download()
+		for _, entry in ipairs(spanish_spell_files) do
+			if vim.fn.filereadable(entry.path) == 1 then
+				vim.fn.delete(entry.path)
+			end
+		end
+		local ok = ensure_spell_files({ force = true })
+		if ok then
+			vim.notify("Spanish spell files refreshed", vim.log.levels.INFO)
+		end
+	end
 
-    -- Add word to dictionary
-    vim.keymap.set("n", "zg", "zg", { desc = "Add word to dictionary" })
+	local keymaps = {
+		{ "n", "<leader>ss", toggle_spell, { desc = "Toggle spell checking" } },
+		{
+			"n",
+			"<leader>se",
+			function()
+				set_spell_language("en_us")
+			end,
+			{ desc = "Set spell language to English" },
+		},
+		{
+			"n",
+			"<leader>sx",
+			function()
+				set_spell_language("es")
+			end,
+			{ desc = "Set spell language to Spanish" },
+		},
+		{ "n", "<leader>sd", auto_detect_language, { desc = "Auto-detect spell language" } },
+		{ "n", "]s", "]s", { desc = "Next spelling error" } },
+		{ "n", "[s", "[s", { desc = "Previous spelling error" } },
+		{
+			"n",
+			"<leader>z=",
+			function()
+				local word = vim.fn.expand("<cword>")
+				if word == "" then
+					vim.notify("No word under cursor", vim.log.levels.WARN)
+					return
+				end
 
-    -- Mark word as wrong
-    vim.keymap.set("n", "zw", "zw", { desc = "Mark word as wrong" })
+				local suggestions = vim.fn.spellsuggest(word, 10)
+				if #suggestions == 0 then
+					vim.notify("No spelling suggestions found", vim.log.levels.INFO)
+					return
+				end
+
+				vim.ui.select(suggestions, { prompt = "Spelling suggestions for '" .. word .. "':" }, function(choice)
+					if choice then
+						vim.cmd("normal! ciw" .. choice)
+						vim.cmd("normal! b")
+					end
+				end)
+			end,
+			{ desc = "Spelling suggestions (enhanced)" },
+		},
+		{ "n", "zg", "zg", { desc = "Add word to dictionary" } },
+		{ "n", "zw", "zw", { desc = "Mark word as wrong" } },
+		{ "n", "zug", "zug", { desc = "Remove word from dictionary" } },
+		{
+			"n",
+			"<leader>sl",
+			function()
+				vim.cmd("spellgood")
+				vim.notify("Checked spelling on current line", vim.log.levels.INFO)
+			end,
+			{ desc = "Spell check current line" },
+		},
+		{ "n", "<leader>sD", force_download, { desc = "Force download spell files" } },
+		{ "n", "<leader>s?", show_spell_suggestions, { desc = "Show spelling suggestions" } },
+	}
+
+	for _, map in ipairs(keymaps) do
+		vim.keymap.set(map[1], map[2], map[3], map[4])
+	end
 end
 
--- Set up keymaps
-setup_spell_keymaps()
+local function schedule_detection(bufnr, delay)
+	vim.defer_fn(function()
+		with_buf(bufnr, function()
+			if not vim.opt_local.spell:get() then
+				return
+			end
+			auto_detect_language()
+		end)
+	end, delay)
+end
+
+local function setup_autocmds()
+	local group = vim.api.nvim_create_augroup("SpellConfig", { clear = true })
+
+	vim.api.nvim_create_autocmd("FileType", {
+		group = group,
+		pattern = text_filetypes,
+		desc = "Enable spell checking and auto-detect language for text filetypes",
+		callback = function(args)
+			with_buf(args.buf, function()
+				vim.opt_local.spell = true
+				schedule_detection(args.buf, 500)
+			end)
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("FileType", {
+		group = group,
+		pattern = ui_filetypes,
+		desc = "Disable spell checking for UI filetypes",
+		callback = function(args)
+			with_buf(args.buf, function()
+				vim.opt_local.spell = false
+			end)
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("TextChanged", {
+		group = group,
+		pattern = "*",
+		desc = "Auto-detect language on text changes",
+		callback = function(args)
+			if not vim.api.nvim_buf_is_valid(args.buf) then
+				return
+			end
+
+			local ft = vim.bo[args.buf].filetype
+			if not text_filetype_set[ft] then
+				return
+			end
+
+			with_buf(args.buf, function()
+				if not vim.opt_local.spell:get() then
+					return
+				end
+
+				local now = vim.loop.hrtime()
+				local last = vim.b.last_spell_check or 0
+				if now - last <= detection_cooldown_ns then
+					return
+				end
+
+				vim.b.last_spell_check = now
+				auto_detect_language()
+			end)
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("CursorHold", {
+		group = group,
+		pattern = "*",
+		desc = "Show spelling suggestions on hover",
+		callback = function(args)
+			with_buf(args.buf, function()
+				if vim.opt_local.spell:get() then
+					show_spell_suggestions()
+				end
+			end)
+		end,
+	})
+end
+
+function M.setup()
+	if M._configured then
+		return
+	end
+	M._configured = true
+
+	setup_spell_keymaps()
+	setup_autocmds()
+
+	vim.defer_fn(function()
+		ensure_spell_files()
+	end, 1000)
+end
+
+M.detect_language = detect_language_from_buffer
+M.set_language = set_spell_language
+M.auto_detect = auto_detect_language
+
+M.setup()
+
+return M

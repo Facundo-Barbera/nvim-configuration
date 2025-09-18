@@ -21,7 +21,7 @@ end)
 
 -- Line breaks
 vim.opt.linebreak = true
-vim.showbreak = "↪"
+vim.opt.showbreak = "↪"
 
 -- Show which line the cursor is at
 vim.opt.cursorline = true
@@ -43,4 +43,3 @@ vim.opt.wildmode = "longest:full,full"
 -- Better scrolling
 vim.opt.scrolloff = 8
 vim.opt.sidescrolloff = 8
-
