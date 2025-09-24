@@ -33,8 +33,7 @@ vim.api.nvim_create_user_command("KnitHtml", function()
 	)
 
 	-- Cross-platform file opening
-	local open_cmd = vim.fn.has("mac") == 1 and "open" or
-	                vim.fn.has("unix") == 1 and "xdg-open" or "start"
+	local open_cmd = vim.fn.has("mac") == 1 and "open" or vim.fn.has("unix") == 1 and "xdg-open" or "start"
 
 	-- Run render and wait for completion before opening
 	vim.fn.jobstart(cmd, {
@@ -45,6 +44,6 @@ vim.api.nvim_create_user_command("KnitHtml", function()
 			else
 				vim.notify("R Markdown render failed", vim.log.levels.ERROR)
 			end
-		end
+		end,
 	})
 end, {})

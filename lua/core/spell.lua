@@ -331,15 +331,12 @@ local function detect_language_from_buffer()
 	local english_score = count_word_occurrences(text, english_indicators.words, 2)
 	english_score = english_score + count_pattern_occurrences(text, english_indicators.patterns, 1)
 
+	-- Debug info for language detection (silent)
 	local filetype = vim.bo.filetype
 	if filetype == "tex" or filetype == "latex" or filetype == "plaintex" then
-		vim.notify(
-			string.format(
-				"LaTeX detection: Spanish=%d, English=%d (cleaned text: %.50s...)",
-				spanish_score,
-				english_score,
-				text
-			),
+		-- Only log to internal debug, no user notification
+		vim.notify_once(
+			string.format("LaTeX language detection: Spanish=%d, English=%d", spanish_score, english_score),
 			vim.log.levels.DEBUG
 		)
 	end
@@ -352,25 +349,39 @@ local function detect_language_from_buffer()
 		return "en_us"
 	end
 
-	return "es"
+	-- If scores are low or tied, preserve current language instead of defaulting to Spanish
+	local current_lang = vim.opt_local.spelllang:get()[1] or "en_us"
+	return current_lang
 end
 
-local function set_spell_language(lang)
+local function set_spell_language(lang, manual)
 	if lang == "es" and not ensure_spell_files() then
 		vim.notify("Could not download Spanish spell files, using English", vim.log.levels.WARN)
 		lang = "en_us"
 	end
 
 	vim.opt_local.spelllang = lang
-	local lang_name = lang == "es" and "Spanish" or "English"
-	vim.notify("Spell language set to " .. lang_name, vim.log.levels.INFO)
+
+	-- Track manual overrides to prevent auto-detection from changing them
+	if manual then
+		vim.b.spell_manual_override = lang
+		vim.b.spell_manual_override_time = vim.loop.hrtime()
+	end
 end
 
 local function auto_detect_language()
+	-- Respect manual overrides for 30 minutes
+	local manual_override_duration = 30 * 60 * 1e9 -- 30 minutes in nanoseconds
+	local manual_override_time = vim.b.spell_manual_override_time or 0
+	local now = vim.loop.hrtime()
+
+	if manual_override_time > 0 and (now - manual_override_time) < manual_override_duration then
+		-- Don't auto-detect if user manually set language recently
+		return
+	end
+
 	local detected = detect_language_from_buffer()
 	set_spell_language(detected)
-	local lang_name = detected == "es" and "Spanish" or "English"
-	vim.notify("Auto-detected language: " .. lang_name, vim.log.levels.INFO)
 end
 
 local function show_spell_suggestions()
@@ -397,7 +408,7 @@ local function show_spell_suggestions()
 		local ensured = ensure_spell_files({ force = true })
 		if ensured then
 			spellsuggest_available = true
-			vim.notify_once("Refreshed Spanish spell files after suggestion error. Try again.", vim.log.levels.INFO)
+			-- Spanish spell files refreshed silently
 		else
 			spellsuggest_available = false
 			vim.notify_once("Spell suggestions disabled: " .. tostring(suggestions), vim.log.levels.WARN)
@@ -426,7 +437,7 @@ local function setup_spell_keymaps()
 	local function toggle_spell()
 		vim.opt_local.spell = not vim.opt_local.spell:get()
 		local status = vim.opt_local.spell:get() and "enabled" or "disabled"
-		vim.notify("Spell checking " .. status, vim.log.levels.INFO)
+		-- Spell checking status changed silently
 	end
 
 	local function force_download()
@@ -437,7 +448,7 @@ local function setup_spell_keymaps()
 		end
 		local ok = ensure_spell_files({ force = true })
 		if ok then
-			vim.notify("Spanish spell files refreshed", vim.log.levels.INFO)
+			-- Spanish spell files refreshed silently
 		end
 	end
 
@@ -447,7 +458,7 @@ local function setup_spell_keymaps()
 			"n",
 			"<leader>se",
 			function()
-				set_spell_language("en_us")
+				set_spell_language("en_us", true)
 			end,
 			{ desc = "Set spell language to English" },
 		},
@@ -455,11 +466,21 @@ local function setup_spell_keymaps()
 			"n",
 			"<leader>sx",
 			function()
-				set_spell_language("es")
+				set_spell_language("es", true)
 			end,
 			{ desc = "Set spell language to Spanish" },
 		},
-		{ "n", "<leader>sd", auto_detect_language, { desc = "Auto-detect spell language" } },
+		{
+			"n",
+			"<leader>sd",
+			function()
+				-- Clear manual override and force re-detection
+				vim.b.spell_manual_override = nil
+				vim.b.spell_manual_override_time = nil
+				auto_detect_language()
+			end,
+			{ desc = "Auto-detect spell language" },
+		},
 		{ "n", "]s", "]s", { desc = "Next spelling error" } },
 		{ "n", "[s", "[s", { desc = "Previous spelling error" } },
 		{
@@ -474,7 +495,7 @@ local function setup_spell_keymaps()
 
 				local suggestions = vim.fn.spellsuggest(word, 10)
 				if #suggestions == 0 then
-					vim.notify("No spelling suggestions found", vim.log.levels.INFO)
+					-- No spelling suggestions found (silent)
 					return
 				end
 
@@ -495,7 +516,7 @@ local function setup_spell_keymaps()
 			"<leader>sl",
 			function()
 				vim.cmd("spellgood")
-				vim.notify("Checked spelling on current line", vim.log.levels.INFO)
+				-- Spelling checked on current line silently
 			end,
 			{ desc = "Spell check current line" },
 		},

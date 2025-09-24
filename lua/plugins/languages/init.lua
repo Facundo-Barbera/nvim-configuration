@@ -7,4 +7,3 @@ return {
 	require("plugins.languages.quarto"),
 	require("plugins.languages.latex"),
 }
-

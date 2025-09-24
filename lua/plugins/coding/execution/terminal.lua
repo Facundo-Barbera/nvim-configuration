@@ -107,42 +107,79 @@ return {
 				local filename = vim.fn.expand("%:t")
 
 				local runners = {
-					python = function() return "python3 " .. vim.fn.shellescape(file) end,
-					javascript = function() return "node " .. vim.fn.shellescape(file) end,
-					typescript = function() return "ts-node " .. vim.fn.shellescape(file) end,
-					lua = function() return "lua " .. vim.fn.shellescape(file) end,
-					r = function() return "Rscript " .. vim.fn.shellescape(file) end,
-					sh = function() return "bash " .. vim.fn.shellescape(file) end,
-					zsh = function() return "zsh " .. vim.fn.shellescape(file) end,
-					go = function() return "go run " .. vim.fn.shellescape(file) end,
+					python = function()
+						return "python3 " .. vim.fn.shellescape(file)
+					end,
+					javascript = function()
+						return "node " .. vim.fn.shellescape(file)
+					end,
+					typescript = function()
+						return "ts-node " .. vim.fn.shellescape(file)
+					end,
+					lua = function()
+						return "lua " .. vim.fn.shellescape(file)
+					end,
+					r = function()
+						return "Rscript " .. vim.fn.shellescape(file)
+					end,
+					sh = function()
+						return "bash " .. vim.fn.shellescape(file)
+					end,
+					zsh = function()
+						return "zsh " .. vim.fn.shellescape(file)
+					end,
+					go = function()
+						return "go run " .. vim.fn.shellescape(file)
+					end,
 					rust = function()
 						local name = vim.fn.expand("%:t:r")
 						return string.format("rustc %s && ./%s", vim.fn.shellescape(file), vim.fn.shellescape(name))
 					end,
 					c = function()
 						local name = vim.fn.expand("%:t:r")
-						return string.format("gcc %s -o %s && ./%s", vim.fn.shellescape(file), vim.fn.shellescape(name), vim.fn.shellescape(name))
+						return string.format(
+							"gcc %s -o %s && ./%s",
+							vim.fn.shellescape(file),
+							vim.fn.shellescape(name),
+							vim.fn.shellescape(name)
+						)
 					end,
 					cpp = function()
 						local name = vim.fn.expand("%:t:r")
-						return string.format("g++ %s -o %s && ./%s", vim.fn.shellescape(file), vim.fn.shellescape(name), vim.fn.shellescape(name))
+						return string.format(
+							"g++ %s -o %s && ./%s",
+							vim.fn.shellescape(file),
+							vim.fn.shellescape(name),
+							vim.fn.shellescape(name)
+						)
 					end,
 					java = function()
 						local name = vim.fn.expand("%:t:r")
-						return string.format("javac %s && java %s", vim.fn.shellescape(filename), vim.fn.shellescape(name))
+						return string.format(
+							"javac %s && java %s",
+							vim.fn.shellescape(filename),
+							vim.fn.shellescape(name)
+						)
 					end,
 					html = function()
-						local open_cmd = vim.fn.has("mac") == 1 and "open" or
-						                vim.fn.has("unix") == 1 and "xdg-open" or "start"
+						local open_cmd = vim.fn.has("mac") == 1 and "open"
+							or vim.fn.has("unix") == 1 and "xdg-open"
+							or "start"
 						return string.format("%s %s", open_cmd, vim.fn.shellescape(file))
 					end,
 					markdown = function()
 						local output = vim.fn.expand("%:p:r") .. ".html"
-						local open_cmd = vim.fn.has("mac") == 1 and "open" or
-						                vim.fn.has("unix") == 1 and "xdg-open" or "start"
+						local open_cmd = vim.fn.has("mac") == 1 and "open"
+							or vim.fn.has("unix") == 1 and "xdg-open"
+							or "start"
 						if vim.fn.executable("pandoc") == 1 then
-							return string.format("pandoc %s -o %s && %s %s",
-								vim.fn.shellescape(file), vim.fn.shellescape(output), open_cmd, vim.fn.shellescape(output))
+							return string.format(
+								"pandoc %s -o %s && %s %s",
+								vim.fn.shellescape(file),
+								vim.fn.shellescape(output),
+								open_cmd,
+								vim.fn.shellescape(output)
+							)
 						else
 							return string.format("%s %s", open_cmd, vim.fn.shellescape(file))
 						end

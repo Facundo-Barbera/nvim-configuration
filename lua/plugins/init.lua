@@ -14,4 +14,3 @@ return {
 	{ import = "plugins.coding" },
 	{ import = "plugins.languages" },
 }
-

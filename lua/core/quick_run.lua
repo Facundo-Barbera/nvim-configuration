@@ -25,7 +25,7 @@ return {
 					-- For lua files, use luafile if it's a neovim config, otherwise lua command
 					if file:match("nvim") or file:match("config") then
 						vim.cmd("luafile " .. file)
-						vim.notify("Executed lua file in Neovim", vim.log.levels.INFO)
+						-- Silently execute lua file
 						return nil -- Don't run external command
 					else
 						return { "lua", file }
@@ -65,7 +65,7 @@ return {
 
 			local runner = runners[ft]
 			if not runner then
-				vim.notify("No quick runner available for filetype: " .. ft, vim.log.levels.WARN)
+				-- No runner available for this filetype
 				return
 			end
 
@@ -141,7 +141,10 @@ return {
 			-- Show notification
 			local level = exit_code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR
 			local msg = exit_code == 0 and "Execution completed successfully" or "Execution failed"
-			vim.notify(msg, level)
+			-- Only show error notifications, success is silent
+			if level == vim.log.levels.ERROR then
+				vim.notify(msg, level)
+			end
 		end
 
 		-- Quick compile for compiled languages
@@ -171,7 +174,7 @@ return {
 
 			local compiler = compilers[ft]
 			if not compiler then
-				vim.notify("No compiler available for filetype: " .. ft, vim.log.levels.WARN)
+				-- No compiler available for this filetype
 				return
 			end
 
@@ -183,7 +186,7 @@ return {
 			local exit_code = vim.v.shell_error
 
 			if exit_code == 0 then
-				vim.notify("Compilation successful", vim.log.levels.INFO)
+				-- Compilation successful (silent)
 			else
 				vim.notify("Compilation failed: " .. output, vim.log.levels.ERROR)
 			end
@@ -244,7 +247,10 @@ return {
 			-- Show results
 			local level = exit_code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR
 			local msg = exit_code == 0 and "Tests passed" or "Tests failed"
-			vim.notify(msg .. "\n" .. output, level)
+			-- Only show error notifications for tests
+			if level == vim.log.levels.ERROR then
+				vim.notify(msg .. "\n" .. output, level)
+			end
 		end
 
 		-- Benchmark/profiling runners
@@ -275,7 +281,7 @@ return {
 
 			local cmd = profiler()
 			local output = vim.fn.system(cmd)
-			vim.notify("Profiling completed:\n" .. output, vim.log.levels.INFO)
+			-- Profiling completed (silent)
 		end
 
 		-- Key mappings
@@ -298,7 +304,7 @@ return {
 			elseif ft == "r" then
 				vim.cmd("!" .. "Rscript " .. vim.fn.shellescape(file) .. " " .. args)
 			else
-				vim.notify("Arguments not supported for filetype: " .. ft, vim.log.levels.WARN)
+				-- Arguments not supported for this filetype
 			end
 		end, { desc = "Run with arguments" })
 
@@ -329,7 +335,7 @@ return {
 
 			local linter = linters[ft]
 			if not linter then
-				vim.notify("No linter available for filetype: " .. ft, vim.log.levels.WARN)
+				-- No linter available for this filetype
 				return
 			end
 
@@ -338,7 +344,7 @@ return {
 			local exit_code = vim.v.shell_error
 
 			if exit_code == 0 then
-				vim.notify("No linting errors found", vim.log.levels.INFO)
+				-- No linting errors found (silent)
 			else
 				vim.notify("Linting issues found:\n" .. output, vim.log.levels.WARN)
 			end
@@ -383,12 +389,12 @@ return {
 
 			local formatter = formatters[ft]
 			if not formatter then
-				vim.notify("No formatter available for filetype: " .. ft, vim.log.levels.WARN)
+				-- No formatter available for this filetype
 				return
 			end
 
 			local msg = formatter()
-			vim.notify(msg, vim.log.levels.INFO)
+			-- Formatting completed (silent)
 		end
 
 		-- Create user commands
