@@ -1,0 +1,21 @@
+# StyLua configuration for Neovim configuration
+# https://github.com/JohnnyMorganz/StyLua
+
+# Basic formatting options
+column_width = 100
+line_endings = "Unix"
+indent_type = "Tabs"
+indent_width = 4
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"
+
+# Table formatting
+collapse_simple_statement = "Never"
+
+# Function call formatting - preserve existing style
+# This helps maintain readability in plugin configurations
+no_call_parentheses = false
+
+# Specific patterns for better Neovim config formatting
+[sort_requires]
+enabled = false  # Don't auto-sort requires to preserve intentional ordering

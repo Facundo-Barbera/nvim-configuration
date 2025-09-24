@@ -10,6 +10,7 @@ return {
 		require("nvim-tree").setup({
 			disable_netrw = true,
 			hijack_netrw = true,
+			hijack_unnamed_buffer_when_opening = false,
 			view = {
 				width = 30,
 				side = "left",
@@ -41,6 +42,18 @@ return {
 						},
 					},
 				},
+				remove_file = {
+					close_window = false,
+				},
+				change_dir = {
+					enable = true,
+					global = false,
+					restrict_above_cwd = false,
+				},
+			},
+			notify = {
+				threshold = vim.log.levels.ERROR, -- Only show errors, suppress all other messages
+				absolute_path = false,
 			},
 			filters = {
 				dotfiles = false,
@@ -67,9 +80,25 @@ return {
 				update_root = false,
 				ignore_list = {},
 			},
+			filesystem_watchers = {
+				enable = true,
+				debounce_delay = 50,
+				ignore_dirs = {},
+			},
+			system_open = {
+				cmd = nil,
+				args = {},
+			},
+			diagnostics = {
+				enable = false,
+			},
+			modified = {
+				enable = false,
+			},
 		})
 
 		-- Enhanced keymaps
 		vim.keymap.set("n", "<leader>e", ":NvimTreeToggle<CR>", { desc = "Toggle file explorer" })
+
 	end,
 }

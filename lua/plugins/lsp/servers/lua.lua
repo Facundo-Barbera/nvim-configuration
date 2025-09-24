@@ -1,12 +1,12 @@
 return {
-    name = "lua_ls",
-    config = {
-        settings = {
-            Lua = {
-                diagnostics = {
-                    globals = { "vim" }
-                },
-            }
-        }
-    }
+	name = "lua_ls",
+	config = {
+		settings = {
+			Lua = {
+				diagnostics = {
+					globals = { "vim" },
+				},
+			},
+		},
+	},
 }
